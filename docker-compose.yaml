@@ -1,0 +1,68 @@
+services:
+  # ========================================
+  # OCF Server (Simulated Raspberry Pi)
+  # ========================================
+  ocf-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: iot-gateway-rpi
+    hostname: rpi-gateway
+    networks:
+      iot-network:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "5000:5000"      # Flask backend
+      - "5683:5683/udp"  # CoAP server
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  # ========================================
+  # OCF Client #1 (Laptop/PC)
+  # ========================================
+  ocf-client-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: iot-client-laptop
+    hostname: client-laptop
+    networks:
+      iot-network:
+        ipv4_address: 172.20.0.20
+    environment:
+      - SERVER_IP=172.20.0.10
+    depends_on:
+      - ocf-server
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  # ========================================
+  # OCF Client #2 (Mobile/Dashboard)
+  # ========================================
+  ocf-client-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: iot-client-mobile
+    hostname: client-mobile
+    networks:
+      iot-network:
+        ipv4_address: 172.20.0.21
+    environment:
+      - SERVER_IP=172.20.0.10
+    depends_on:
+      - ocf-server
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+networks:
+  iot-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1

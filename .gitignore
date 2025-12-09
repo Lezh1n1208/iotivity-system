@@ -1,0 +1,125 @@
+# =========================
+# OS SYSTEM
+# =========================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# =========================
+# EDITOR / IDE
+# =========================
+# VSCode
+.vscode/
+.history/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+
+# =========================
+# NODE.JS
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+out/
+.temp/
+.tmp/
+.cache/
+.next/
+.nuxt/
+
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Python build
+build/
+develop-eggs/
+dist/
+pip-wheel-metadata/
+*.spec
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# =========================
+# JAVA / KOTLIN
+# =========================
+*.class
+*.jar
+*.war
+*.ear
+.gradle/
+build/
+
+# =========================
+# GIT
+# =========================
+*.orig
+*.rej
+
+# =========================
+# LOGS
+# =========================
+*.log
+logs/
+log/
+
+# =========================
+# OTHER COMMON
+# =========================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.lock
+
+# Images cache
+*.psd
+*.ai
+
+# Compression artifacts
+*.zip
+*.rar
+*.7z
+*.tar.gz
