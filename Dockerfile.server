@@ -1,30 +1,35 @@
 FROM ubuntu:22.04
 
-# Install dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     gcc \
+    g++ \
     make \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Clone IoTivity-Lite với submodules
+RUN git clone --recursive --depth 1 https://github.com/iotivity/iotivity-lite.git && \
+    cd iotivity-lite/port/linux && \
+    make IPV4=1 SERVER=1 TCP=0 SECURE=0
 
 # Copy backend
 COPY iotivity-backend/requirements.txt /app/backend/
 RUN pip3 install --no-cache-dir -r /app/backend/requirements.txt
 
 COPY iotivity-backend/app.py /app/backend/
+RUN mkdir -p /app/backend/templates
+COPY iotivity-backend/templates/ /app/backend/templates/
 
-# Copy source code và libraries
-COPY iotivity-lite /app/iotivity-lite
+# Copy server source
 COPY iotivity-ocf-server/server.c /app/server.c
 
-# ✅ Tạo thư mục server trước khi build
-RUN mkdir -p /app/server
-
-# Build server INSIDE container
-RUN gcc -DOC_SERVER -DOC_IPV4 \
+# Build OCF server
+RUN mkdir -p /app/server && \
+    gcc -DOC_SERVER -DOC_IPV4 \
     -I /app/iotivity-lite/include \
     -I /app/iotivity-lite \
     -I /app/iotivity-lite/port/linux \
@@ -32,11 +37,9 @@ RUN gcc -DOC_SERVER -DOC_IPV4 \
     /app/server.c \
     /app/iotivity-lite/port/linux/libiotivity-lite-server.a \
     -o /app/server/ocfserver \
-    -pthread -lm
+    -pthread -lm && \
+    chmod +x /app/server/ocfserver
 
-RUN chmod +x /app/server/ocfserver
-
-# Startup script
 COPY docker-start-server.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

@@ -1,18 +1,23 @@
 FROM ubuntu:22.04
 
-# Install build tools
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
     make \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy source code và libraries
-COPY iotivity-lite /app/iotivity-lite
+# Clone IoTivity-Lite với submodules
+RUN git clone --recursive --depth 1 https://github.com/iotivity/iotivity-lite.git && \
+    cd iotivity-lite/port/linux && \
+    make IPV4=1 CLIENT=1 TCP=0 SECURE=0
+
+# Copy client source
 COPY iotivity-ocf-client/client.c /app/client.c
 
-# Build client INSIDE container
+# Build OCF client
 RUN gcc -DOC_CLIENT -DOC_IPV4 \
     -I /app/iotivity-lite/include \
     -I /app/iotivity-lite \
@@ -21,10 +26,10 @@ RUN gcc -DOC_CLIENT -DOC_IPV4 \
     /app/client.c \
     /app/iotivity-lite/port/linux/libiotivity-lite-client.a \
     -o /app/ocfclient \
-    -pthread -lm
+    -pthread -lm && \
+    chmod +x /app/ocfclient
 
-# Startup script
 COPY docker-start-client.sh /app/start.sh
-RUN chmod +x /app/start.sh /app/ocfclient
+RUN chmod +x /app/start.sh
 
 CMD ["/app/start.sh"]
