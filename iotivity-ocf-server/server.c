@@ -1,5 +1,3 @@
-// filepath:
-// /home/lezh1n/Workspace/Project/IoT/source-code/iotivity-ocf-server/server.c
 #include "oc_api.h"
 #include "port/oc_clock.h"
 #include <signal.h>
@@ -53,7 +51,6 @@ static int app_init(void) {
 }
 
 static void register_resources(void) {
-  // Resource /temperature
   oc_resource_t *res_temp = oc_new_resource(NULL, "/temperature", 1, 0);
   oc_resource_bind_resource_type(res_temp, "oic.r.temperature");
   oc_resource_bind_resource_interface(res_temp, OC_IF_R);
@@ -62,7 +59,6 @@ static void register_resources(void) {
   oc_resource_set_request_handler(res_temp, OC_GET, get_temperature, NULL);
   oc_add_resource(res_temp);
 
-  // Resource /humidity
   oc_resource_t *res_humid = oc_new_resource(NULL, "/humidity", 1, 0);
   oc_resource_bind_resource_type(res_humid, "oic.r.humidity");
   oc_resource_bind_resource_interface(res_humid, OC_IF_R);
@@ -71,9 +67,7 @@ static void register_resources(void) {
   oc_resource_set_request_handler(res_humid, OC_GET, get_humidity, NULL);
   oc_add_resource(res_humid);
 
-  printf("✅ Server initialized with 2 resources:\n");
-  printf("   - /temperature (oic.r.temperature)\n");
-  printf("   - /humidity (oic.r.humidity)\n");
+  printf("✅ Server initialized: /temperature, /humidity\n");
   fflush(stdout);
 }
 
@@ -81,8 +75,6 @@ static void signal_event_loop(void) {}
 
 int main(void) {
   setbuf(stdout, NULL);
-  setbuf(stderr, NULL);
-
   signal(SIGINT, signal_handler);
   srand(time(NULL));
 
@@ -95,8 +87,7 @@ int main(void) {
     return -1;
   }
 
-  printf("🚀 OCF Server running on port 5683\n");
-  printf("   Press Ctrl+C to exit\n\n");
+  printf("🚀 OCF Server running on port 5683\n\n");
   fflush(stdout);
 
   time_t last_update = 0;
@@ -108,7 +99,6 @@ int main(void) {
     if (now - last_update >= 5) {
       g_temperature += (rand() % 10 - 5) * 0.1;
       g_humidity += (rand() % 10 - 5) * 0.1;
-
       if (g_temperature < 15)
         g_temperature = 15;
       if (g_temperature > 35)
@@ -118,12 +108,10 @@ int main(void) {
       if (g_humidity > 90)
         g_humidity = 90;
 
-      printf("[Server] Data updated: %.1f°C, %.1f%%\n", g_temperature,
-             g_humidity);
+      printf("[Server] Data: %.1f°C, %.1f%%\n", g_temperature, g_humidity);
       fflush(stdout);
       last_update = now;
     }
-
     usleep(10000);
   }
 

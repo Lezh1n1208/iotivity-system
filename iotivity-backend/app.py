@@ -1,31 +1,37 @@
-from flask import Flask, request, jsonify
-import time
+from flask import Flask, request, jsonify, render_template
+from flask_socketio import SocketIO
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# In-memory storage
 latest_data = {"temperature": 0.0, "humidity": 0.0, "timestamp": 0}
 
 
+@app.route('/')
+def dashboard():
+    return render_template('dashboard.html')
+
+
 @app.route('/sensor', methods=['POST'])
-def receive_sensor():
-    """ESP8266 gửi data đến đây"""
+def receive_sensor_data():
     global latest_data
-    data = request.json
-    latest_data = {
-        "temperature": data.get("temperature", 0.0),
-        "humidity": data.get("humidity", 0.0),
-        "timestamp": int(time.time())
-    }
-    print(f"[Backend] Received: {latest_data}")
-    return jsonify({"status": "ok"}), 200
+    data = request.get_json()
+    if data:
+        latest_data = data
+        print(f"[Backend] Received: {data}")
+        socketio.emit('sensor_update', data)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/api/sensors', methods=['GET'])
+def get_sensors():
+    return jsonify(latest_data)
 
 
 @app.route('/latest', methods=['GET'])
 def get_latest():
-    """OCF Server lấy data từ đây"""
-    return jsonify(latest_data), 200
+    return jsonify(latest_data)
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

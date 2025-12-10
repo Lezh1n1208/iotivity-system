@@ -1,11 +1,6 @@
 #!/bin/bash
+# filepath: /home/lezh1n/Workspace/Project/IoT/source-code/docker-start-client.sh
 
 echo "📱 Starting OCF Client"
-echo "======================"
-
-# Wait for server to be ready
-echo "⏳ Waiting for server to start..."
 sleep 5
-
-echo "✅ Starting client..."
 exec /app/ocfclient
