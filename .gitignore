@@ -123,3 +123,6 @@ log/
 *.rar
 *.7z
 *.tar.gz
+
+# Local configs file
+./iotivity_esp8266/include/Config.h

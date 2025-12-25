@@ -40,6 +40,9 @@ RUN mkdir -p /app/server && \
     -pthread -lm && \
     chmod +x /app/server/ocfserver
 
+# Create shared state directory
+RUN mkdir -p /tmp && chmod 777 /tmp
+
 COPY docker-start-server.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

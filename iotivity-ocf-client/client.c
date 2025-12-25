@@ -12,6 +12,8 @@
 
 static int quit = 0;
 static oc_endpoint_t *server_ep = NULL;
+static int temp_unavailable = 0;
+static int humid_unavailable = 0;
 
 static void signal_handler(int sig) {
   (void)sig;
@@ -19,20 +21,64 @@ static void signal_handler(int sig) {
 }
 
 static void temp_response(oc_client_response_t *data) {
-  if (data && data->code == OC_STATUS_OK && data->payload) {
+  if (!data) {
+    printf("❌ Temperature: No response\n");
+    temp_unavailable = 1;
+    fflush(stdout);
+    return;
+  }
+
+  if (data->code == OC_STATUS_SERVICE_UNAVAILABLE) {
+    printf("⚠️  Temperature: SENSOR OFFLINE\n");
+    temp_unavailable = 1;
+    fflush(stdout);
+    return;
+  }
+
+  if (data->code == OC_STATUS_OK && data->payload) {
     double temp = 0.0;
+    char *source = NULL;
+    size_t source_len = 0;
+    
     if (oc_rep_get_double(data->payload, "temperature", &temp)) {
-      printf("🌡️  Temperature: %.1f°C\n", temp);
+      printf("🌡️  Temperature: %.1f°C", temp);
+      if (oc_rep_get_string(data->payload, "source", &source, &source_len)) {
+        printf(" [%s]", source);
+      }
+      printf("\n");
+      temp_unavailable = 0;
     }
   }
   fflush(stdout);
 }
 
 static void humid_response(oc_client_response_t *data) {
-  if (data && data->code == OC_STATUS_OK && data->payload) {
+  if (!data) {
+    printf("❌ Humidity: No response\n");
+    humid_unavailable = 1;
+    fflush(stdout);
+    return;
+  }
+
+  if (data->code == OC_STATUS_SERVICE_UNAVAILABLE) {
+    printf("⚠️  Humidity: SENSOR OFFLINE\n");
+    humid_unavailable = 1;
+    fflush(stdout);
+    return;
+  }
+
+  if (data->code == OC_STATUS_OK && data->payload) {
     double humid = 0.0;
+    char *source = NULL;
+    size_t source_len = 0;
+    
     if (oc_rep_get_double(data->payload, "humidity", &humid)) {
-      printf("💧 Humidity: %.1f%%\n", humid);
+      printf("💧 Humidity: %.1f%%", humid);
+      if (oc_rep_get_string(data->payload, "source", &source, &source_len)) {
+        printf(" [%s]", source);
+      }
+      printf("\n");
+      humid_unavailable = 0;
     }
   }
   fflush(stdout);
@@ -69,8 +115,8 @@ discovery_cb(const char *anchor, const char *uri, oc_string_array_t types,
   (void)endpoint;
 
   if (uri && strstr(uri, "/temperature") && !server_ep) {
-    printf("✅ Discovered: %s\n", uri);
-    server_ep = create_endpoint("172.20.0.10", 5683);
+    printf("✅ Discovered OCF Server: %s\n", uri);
+    server_ep = create_endpoint("192.168.1.3", 5683);
     fflush(stdout);
     return OC_STOP_DISCOVERY;
   }
@@ -100,7 +146,7 @@ int main(void) {
     return -1;
   }
 
-  printf("🔍 Discovering server...\n");
+  printf("🔍 Discovering OCF server at 172.20.0.10...\n");
   fflush(stdout);
 
   oc_do_ip_discovery("oic.r.temperature", discovery_cb, NULL);
@@ -111,12 +157,14 @@ int main(void) {
   }
 
   if (!server_ep) {
-    printf("❌ Server not found\n");
+    printf("❌ OCF Server not found at 172.20.0.10:5683\n");
+    printf("💡 Make sure ocf-server container is running\n");
     oc_main_shutdown();
     return -1;
   }
 
-  printf("✅ Connected to server\n\n");
+  printf("✅ Connected to OCF Server\n");
+  printf("📡 Polling sensor data every 10s...\n\n");
   fflush(stdout);
 
   time_t last_req = 0;
@@ -126,6 +174,10 @@ int main(void) {
 
     time_t now = time(NULL);
     if (now - last_req >= 10) {
+      if (temp_unavailable && humid_unavailable) {
+        printf("⚠️  Sensor offline - check ESP8266 connection\n");
+      }
+      
       oc_do_get("/temperature", server_ep, NULL, temp_response, LOW_QOS, NULL);
       oc_do_get("/humidity", server_ep, NULL, humid_response, LOW_QOS, NULL);
       last_req = now;
