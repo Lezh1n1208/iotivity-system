@@ -116,7 +116,7 @@ discovery_cb(const char *anchor, const char *uri, oc_string_array_t types,
 
   if (uri && strstr(uri, "/temperature") && !server_ep) {
     printf("✅ Discovered OCF Server: %s\n", uri);
-    server_ep = create_endpoint("192.168.1.3", 5683);
+    server_ep = create_endpoint("10.251.5.213", 5683);
     fflush(stdout);
     return OC_STOP_DISCOVERY;
   }
