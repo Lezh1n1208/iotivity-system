@@ -97,7 +97,7 @@ curl -X POST "http://localhost:5683" \
 
 ## Contact
 
-For questions, contact [your email](mailto:your@email.com) or visit the repository's issues page.
+For questions, contact [Lezh1n](hoangphilong1208@gmail.com) or visit the repository's issues page.
 
 ---
 
