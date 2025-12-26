@@ -1,0 +1,14 @@
+# Default: auto normalize
+* text=auto
+
+# Shell scripts must be LF
+*.sh text eol=lf
+
+# Dockerfile also LF
+Dockerfile* text eol=lf
+
+# C/C++ source
+*.c   text eol=lf
+*.h   text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
