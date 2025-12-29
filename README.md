@@ -1,4 +1,4 @@
-# IoT Gateway Project README
+# IoT Gateway Project
 
 ## Overview
 
