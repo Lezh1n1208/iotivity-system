@@ -5,7 +5,13 @@ services:
       dockerfile: Dockerfile.server
     container_name: iot-gateway-rpi
     hostname: rpi-gateway
-    network_mode: "host"
+    # BỎ network_mode: "host"
+    networks:
+      iot-network:
+        ipv4_address: 10.99.0.10
+    ports:
+      - "5000:5000" # Flask Backend
+      - "5683:5683/udp" # OCF CoAP Server
     volumes:
       - sensor-state:/tmp
     restart: unless-stopped
@@ -24,7 +30,7 @@ services:
       iot-network:
         ipv4_address: 10.99.0.20
     environment:
-      - SERVER_IP=10.251.5.213
+      - SERVER_IP=10.99.0.10 # ← Đổi thành IP container
     depends_on:
       - ocf-server
     restart: unless-stopped
@@ -41,7 +47,7 @@ services:
       iot-network:
         ipv4_address: 10.99.0.21
     environment:
-      - SERVER_IP=10.251.5.213
+      - SERVER_IP=10.99.0.10 # ← Đổi thành IP container
     depends_on:
       - ocf-server
     restart: unless-stopped

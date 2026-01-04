@@ -1,11 +1,11 @@
 #pragma once
 
 // === WiFi ===
-#define WIFI_SSID     "PTIT.HCM_SV"
-#define WIFI_PASS     ""
+#define WIFI_SSID     "An Binh Lau4 -1"
+#define WIFI_PASS     "anbinh123"
 
 // === API Server === (PC IP + Flask port)
-#define SERVER_HOST   "10.251.5.213" 
+#define SERVER_HOST   "192.168.1.12" 
 #define SERVER_PORT   5000
 #define SERVER_ENDPOINT "/sensor"
 

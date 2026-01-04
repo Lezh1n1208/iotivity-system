@@ -116,7 +116,7 @@ discovery_cb(const char *anchor, const char *uri, oc_string_array_t types,
 
   if (uri && strstr(uri, "/temperature") && !server_ep) {
     printf("✅ Discovered OCF Server: %s\n", uri);
-    server_ep = create_endpoint("10.251.5.213", 5683);
+    server_ep = create_endpoint("10.99.0.10", 5683);
     fflush(stdout);
     return OC_STOP_DISCOVERY;
   }
@@ -146,7 +146,7 @@ int main(void) {
     return -1;
   }
 
-  printf("🔍 Discovering OCF server at 172.20.0.10...\n");
+  printf("🔍 Discovering OCF server at 10.99.0.10...\n");
   fflush(stdout);
 
   oc_do_ip_discovery("oic.r.temperature", discovery_cb, NULL);
@@ -157,7 +157,7 @@ int main(void) {
   }
 
   if (!server_ep) {
-    printf("❌ OCF Server not found at 172.20.0.10:5683\n");
+    printf("❌ OCF Server not found at 10.99.0.10:5683\n");
     printf("💡 Make sure ocf-server container is running\n");
     oc_main_shutdown();
     return -1;

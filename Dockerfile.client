@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     git \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,7 +30,8 @@ RUN gcc -DOC_CLIENT -DOC_IPV4 \
     -pthread -lm && \
     chmod +x /app/ocfclient
 
+# Copy start script + fix CRLF -> LF
 COPY docker-start-client.sh /app/start.sh
-RUN chmod +x /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
-CMD ["/app/start.sh"]
+CMD ["bash", "/app/start.sh"]
