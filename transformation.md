@@ -197,7 +197,7 @@
                     ▼
         ┌─────────────────────────────────┐
         │  Tất cả OCF Servers trong subnet│
-        │  respond với resource info       │
+        │  respond với resource info      │
         └─────────────────────────────────┘
                     │
                     │ Server responds:
@@ -225,7 +225,7 @@
                     ▼
         ┌───────────────────────────────────┐
         │  Server register client as        │
-        │  observer cho resources            │
+        │  observer cho resources           │
         └───────────────────────────────────┘
                     │
                     ▼
@@ -417,7 +417,7 @@ done
 ## 📊 Performance Comparison
 
 | Metric | ❌ Trước | ✅ Sau |
-|--------|---------|--------|
+|--------|----------|--------|
 | **Discovery time** | 0s (hardcode) | 2-5s (multicast) |
 | **Data latency** | 0-10s (polling) | <1s (observe) |
 | **Network requests/min** | 12 (6x GET) | ~2 (only when changed) |
