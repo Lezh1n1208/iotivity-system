@@ -12,6 +12,8 @@ static double g_temperature = 0.0;
 static double g_humidity = 0.0;
 static int sensor_connected = 0;
 static time_t last_sensor_update = 0;
+static double prev_temperature = 0.0;
+static double prev_humidity = 0.0;
 
 #define STATE_FILE "/tmp/sensor_state.json"
 
@@ -35,7 +37,6 @@ static int read_sensor_state() {
   }
   buffer[read] = '\0';
 
-  // Simple JSON parsing (production should use proper library)
   char *temp_str = strstr(buffer, "\"temperature\":");
   char *humid_str = strstr(buffer, "\"humidity\":");
   char *timestamp_str = strstr(buffer, "\"timestamp\":");
@@ -50,6 +51,9 @@ static int read_sensor_state() {
         sscanf(humid_str, "\"humidity\": %lf", &humid) == 1 &&
         sscanf(timestamp_str, "\"timestamp\": %ld", &timestamp) == 1 &&
         sscanf(connected_str, "\"sensor_connected\": %5s", connected) == 1) {
+      
+      prev_temperature = g_temperature;
+      prev_humidity = g_humidity;
       
       g_temperature = temp;
       g_humidity = humid;
@@ -115,23 +119,29 @@ static int app_init(void) {
 }
 
 static void register_resources(void) {
+  // ✅ Temperature resource với OBSERVE support
   oc_resource_t *res_temp = oc_new_resource(NULL, "/temperature", 1, 0);
   oc_resource_bind_resource_type(res_temp, "oic.r.temperature");
   oc_resource_bind_resource_interface(res_temp, OC_IF_R);
   oc_resource_set_default_interface(res_temp, OC_IF_R);
   oc_resource_set_discoverable(res_temp, true);
+  oc_resource_set_observable(res_temp, true);  // ← Enable OBSERVE
   oc_resource_set_request_handler(res_temp, OC_GET, get_temperature, NULL);
   oc_add_resource(res_temp);
 
+  // ✅ Humidity resource với OBSERVE support
   oc_resource_t *res_humid = oc_new_resource(NULL, "/humidity", 1, 0);
   oc_resource_bind_resource_type(res_humid, "oic.r.humidity");
   oc_resource_bind_resource_interface(res_humid, OC_IF_R);
   oc_resource_set_default_interface(res_humid, OC_IF_R);
   oc_resource_set_discoverable(res_humid, true);
+  oc_resource_set_observable(res_humid, true);  // ← Enable OBSERVE
   oc_resource_set_request_handler(res_humid, OC_GET, get_humidity, NULL);
   oc_add_resource(res_humid);
 
-  printf("✅ Server initialized: /temperature, /humidity\n");
+  printf("✅ Server initialized with OBSERVE support\n");
+  printf("   - /temperature (observable)\n");
+  printf("   - /humidity (observable)\n");
   fflush(stdout);
 }
 
@@ -150,7 +160,9 @@ int main(void) {
     return -1;
   }
 
-  printf("🚀 OCF Server running on port 5683\n");
+  printf("🚀 OCF Server running (OCF-Compliant)\n");
+  printf("   - Discovery: multicast 224.0.1.187:5683\n");
+  printf("   - OBSERVE notifications enabled\n");
   printf("📡 Waiting for ESP8266 sensor data...\n\n");
   fflush(stdout);
 
@@ -161,12 +173,10 @@ int main(void) {
 
     time_t now = time(NULL);
     
-    // Check sensor state every 2 seconds
     if (now - last_check >= 2) {
       int prev_connected = sensor_connected;
       read_sensor_state();
       
-      // Log status changes
       if (!prev_connected && sensor_connected) {
         printf("🟢 ESP8266 Connected! T=%.1f°C, H=%.1f%%\n", 
                g_temperature, g_humidity);
@@ -175,16 +185,17 @@ int main(void) {
         printf("🔴 ESP8266 Disconnected (timeout)\n");
         fflush(stdout);
       } else if (sensor_connected) {
-        // Quiet update
-        time_t age = now - last_sensor_update;
-        if (age < 15) {
-          printf("📊 Sensor Data: T=%.1f°C, H=%.1f%% (age: %lds)\n", 
-                 g_temperature, g_humidity, age);
-          fflush(stdout);
+        // ✅ Notify observers nếu có thay đổi
+        if (g_temperature != prev_temperature) {
+          printf("📤 Notifying observers: Temperature changed to %.1f°C\n", g_temperature);
+          oc_notify_observers(oc_ri_get_app_resource_by_uri("/temperature", 
+                                                            strlen("/temperature"), 0));
         }
-      } else {
-        printf("⏳ Waiting for ESP8266... (check your WiFi config)\n");
-        fflush(stdout);
+        if (g_humidity != prev_humidity) {
+          printf("📤 Notifying observers: Humidity changed to %.1f%%\n", g_humidity);
+          oc_notify_observers(oc_ri_get_app_resource_by_uri("/humidity", 
+                                                            strlen("/humidity"), 0));
+        }
       }
       
       last_check = now;

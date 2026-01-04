@@ -14,13 +14,15 @@ static int quit = 0;
 static oc_endpoint_t *server_ep = NULL;
 static int temp_unavailable = 0;
 static int humid_unavailable = 0;
+static bool discovery_done = false;
 
 static void signal_handler(int sig) {
   (void)sig;
   quit = 1;
 }
 
-static void temp_response(oc_client_response_t *data) {
+// ==================== OBSERVE Handlers ====================
+static void temp_observe_handler(oc_client_response_t *data) {
   if (!data) {
     printf("❌ Temperature: No response\n");
     temp_unavailable = 1;
@@ -41,7 +43,7 @@ static void temp_response(oc_client_response_t *data) {
     size_t source_len = 0;
     
     if (oc_rep_get_double(data->payload, "temperature", &temp)) {
-      printf("🌡️  Temperature: %.1f°C", temp);
+      printf("🌡️  [OBSERVE] Temperature: %.1f°C", temp);
       if (oc_rep_get_string(data->payload, "source", &source, &source_len)) {
         printf(" [%s]", source);
       }
@@ -52,7 +54,7 @@ static void temp_response(oc_client_response_t *data) {
   fflush(stdout);
 }
 
-static void humid_response(oc_client_response_t *data) {
+static void humid_observe_handler(oc_client_response_t *data) {
   if (!data) {
     printf("❌ Humidity: No response\n");
     humid_unavailable = 1;
@@ -73,7 +75,7 @@ static void humid_response(oc_client_response_t *data) {
     size_t source_len = 0;
     
     if (oc_rep_get_double(data->payload, "humidity", &humid)) {
-      printf("💧 Humidity: %.1f%%", humid);
+      printf("💧 [OBSERVE] Humidity: %.1f%%", humid);
       if (oc_rep_get_string(data->payload, "source", &source, &source_len)) {
         printf(" [%s]", source);
       }
@@ -84,25 +86,7 @@ static void humid_response(oc_client_response_t *data) {
   fflush(stdout);
 }
 
-static oc_endpoint_t *create_endpoint(const char *host, uint16_t port) {
-  oc_endpoint_t *ep = oc_new_endpoint();
-  if (!ep)
-    return NULL;
-
-  memset(ep, 0, sizeof(oc_endpoint_t));
-  ep->flags = IPV4;
-  ep->addr.ipv4.port = port;
-
-  struct in_addr addr;
-  if (inet_pton(AF_INET, host, &addr) == 1) {
-    memcpy(ep->addr.ipv4.address, &addr, 4);
-    return ep;
-  }
-
-  oc_free_endpoint(ep);
-  return NULL;
-}
-
+// ==================== Discovery Callback ====================
 static oc_discovery_flags_t
 discovery_cb(const char *anchor, const char *uri, oc_string_array_t types,
              oc_interface_mask_t iface, const oc_endpoint_t *endpoint,
@@ -112,13 +96,26 @@ discovery_cb(const char *anchor, const char *uri, oc_string_array_t types,
   (void)iface;
   (void)bm;
   (void)user_data;
-  (void)endpoint;
 
-  if (uri && strstr(uri, "/temperature") && !server_ep) {
-    printf("✅ Discovered OCF Server: %s\n", uri);
-    server_ep = create_endpoint("192.168.1.3", 5683);
-    fflush(stdout);
-    return OC_STOP_DISCOVERY;
+  // ✅ Discovery thật sự - không hardcode IP
+  if (uri && strstr(uri, "/temperature") && !server_ep && endpoint) {
+    printf("✅ Discovered OCF Server:\n");
+    printf("   URI: %s\n", uri);
+    
+    // Extract IP from discovered endpoint
+    char ip[INET_ADDRSTRLEN];
+    if (endpoint->flags & IPV4) {
+      inet_ntop(AF_INET, endpoint->addr.ipv4.address, ip, sizeof(ip));
+      printf("   IP: %s:%d\n", ip, endpoint->addr.ipv4.port);
+      
+      // Clone endpoint từ discovery result
+      server_ep = oc_new_endpoint();
+      memcpy(server_ep, endpoint, sizeof(oc_endpoint_t));
+      discovery_done = true;
+      
+      fflush(stdout);
+      return OC_STOP_DISCOVERY;
+    }
   }
   return OC_CONTINUE_DISCOVERY;
 }
@@ -134,7 +131,8 @@ static void signal_event_loop(void) {}
 
 int main(void) {
   setbuf(stdout, NULL);
-  printf("\n🔌 OCF Client\n\n");
+  printf("\n🔌 OCF Client (OCF-Compliant)\n");
+  printf("================================\n\n");
 
   signal(SIGINT, signal_handler);
 
@@ -146,43 +144,61 @@ int main(void) {
     return -1;
   }
 
-  printf("🔍 Discovering OCF server at 172.20.0.10...\n");
+  // ==================== Phase 1: Discovery ====================
+  printf("🔍 Phase 1: Discovering OCF servers...\n");
+  printf("   (multicast to 224.0.1.187:5683)\n");
   fflush(stdout);
 
   oc_do_ip_discovery("oic.r.temperature", discovery_cb, NULL);
 
-  for (int i = 0; i < 100 && !server_ep; i++) {
+  // Đợi discovery hoàn thành (timeout 30s)
+  time_t start = time(NULL);
+  while (!discovery_done && (time(NULL) - start) < 30 && !quit) {
     oc_main_poll_v1();
     usleep(100000);
   }
 
   if (!server_ep) {
-    printf("❌ OCF Server not found at 172.20.0.10:5683\n");
-    printf("💡 Make sure ocf-server container is running\n");
+    printf("\n❌ No OCF Server found after 30s!\n");
+    printf("💡 Troubleshooting:\n");
+    printf("   1. Check if ocf-server container is running\n");
+    printf("   2. Verify network connectivity between containers\n");
+    printf("   3. Check firewall: sudo ufw allow 5683/udp\n");
+    printf("   4. Ensure multicast is enabled in Docker network\n");
     oc_main_shutdown();
     return -1;
   }
 
-  printf("✅ Connected to OCF Server\n");
-  printf("📡 Polling sensor data every 10s...\n\n");
+  printf("✅ Discovery completed!\n\n");
+
+  // ==================== Phase 2: Observe Resources ====================
+  printf("🔍 Phase 2: Setting up OBSERVE on resources...\n");
   fflush(stdout);
 
-  time_t last_req = 0;
+  // Setup OBSERVE cho /temperature
+  if (!oc_do_observe("/temperature", server_ep, NULL, 
+                     temp_observe_handler, LOW_QOS, NULL)) {
+    printf("❌ Failed to observe /temperature\n");
+  } else {
+    printf("✅ Observing /temperature\n");
+  }
 
+  // Setup OBSERVE cho /humidity
+  if (!oc_do_observe("/humidity", server_ep, NULL, 
+                     humid_observe_handler, LOW_QOS, NULL)) {
+    printf("❌ Failed to observe /humidity\n");
+  } else {
+    printf("✅ Observing /humidity\n");
+  }
+
+  printf("\n📡 Waiting for notifications from server...\n");
+  printf("   (Press Ctrl+C to exit)\n\n");
+  fflush(stdout);
+
+  // ==================== Phase 3: Event Loop ====================
   while (!quit) {
     oc_main_poll_v1();
-
-    time_t now = time(NULL);
-    if (now - last_req >= 10) {
-      if (temp_unavailable && humid_unavailable) {
-        printf("⚠️  Sensor offline - check ESP8266 connection\n");
-      }
-      
-      oc_do_get("/temperature", server_ep, NULL, temp_response, LOW_QOS, NULL);
-      oc_do_get("/humidity", server_ep, NULL, humid_response, LOW_QOS, NULL);
-      last_req = now;
-    }
-    usleep(10000);
+    usleep(10000);  // Server sẽ push updates tự động
   }
 
   if (server_ep)

@@ -103,11 +103,29 @@
         padding: 30px;
         border: 1px solid rgba(255, 255, 255, 0.1);
         transition: transform 0.3s, box-shadow 0.3s;
+        position: relative;
       }
 
       .card:hover {
         transform: translateY(-5px);
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .card.offline {
+        opacity: 0.5;
+        border-color: #ff4444;
+      }
+
+      .card-offline-overlay {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: rgba(255, 68, 68, 0.2);
+        color: #ff4444;
+        padding: 5px 15px;
+        border-radius: 15px;
+        font-size: 0.85em;
+        font-weight: bold;
       }
 
       .card-header {
@@ -144,6 +162,10 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+      }
+
+      .card-value.offline {
+        color: #666;
       }
 
       .card-unit {
@@ -302,20 +324,24 @@
 
       <div class="status-bar">
         <div class="status-item">
-          <div class="status-dot" id="serverStatus"></div>
+          <div class="status-dot offline" id="sensorStatus"></div>
+          <span>ESP8266 Sensor</span>
+        </div>
+        <div class="status-item">
+          <div class="status-dot offline" id="serverStatus"></div>
           <span>OCF Server</span>
         </div>
         <div class="status-item">
-          <div class="status-dot" id="wsStatus"></div>
+          <div class="status-dot offline" id="wsStatus"></div>
           <span>WebSocket</span>
         </div>
         <div class="status-item">
-          <span>🕐 Last Update: <span id="lastUpdate">--</span></span>
+          <span>🕐 Last Update: <span id="lastUpdate">Waiting...</span></span>
         </div>
       </div>
 
       <div class="cards-grid">
-        <div class="card">
+        <div class="card" id="tempCard">
           <div class="card-header">
             <span class="card-icon">🌡️</span>
             <span class="card-title">Temperature</span>
@@ -330,7 +356,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="humidCard">
           <div class="card-header">
             <span class="card-icon">💧</span>
             <span class="card-title">Humidity</span>
@@ -353,8 +379,9 @@
           <div style="color: #888; line-height: 1.8">
             <p><strong>Protocol:</strong> CoAP over UDP</p>
             <p><strong>Port:</strong> 5683</p>
-            <p><strong>IP:</strong> 172.20.0.10</p>
+            <p><strong>IP:</strong> <span id="serverIP">Loading...</span></p>
             <p><strong>Framework:</strong> IoTivity-Lite</p>
+            <p><strong>Discover:</strong> Multicast 224.0.1.187</p>
           </div>
         </div>
       </div>
@@ -388,8 +415,8 @@
               </div>
             </div>
             <div class="client-stats">
-              <span>Polling: 10s</span>
-              <span id="laptopStatus">🟢 Active</span>
+              <span>Mode: OBSERVE</span>
+              <span id="laptopStatus">⚪ Unknown</span>
             </div>
           </div>
 
@@ -402,8 +429,8 @@
               </div>
             </div>
             <div class="client-stats">
-              <span>Polling: 10s</span>
-              <span id="mobileStatus">🟢 Active</span>
+              <span>Mode: OBSERVE</span>
+              <span id="mobileStatus">⚪ Unknown</span>
             </div>
           </div>
 
@@ -416,8 +443,8 @@
               </div>
             </div>
             <div class="client-stats">
-              <span>Real-time</span>
-              <span id="webStatus">🟢 Connected</span>
+              <span>Mode: WebSocket</span>
+              <span id="webStatus">🔴 Disconnected</span>
             </div>
           </div>
         </div>
@@ -472,6 +499,15 @@
             legend: {
               display: false,
             },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return (
+                    context.dataset.label + ": " + context.parsed.y.toFixed(1)
+                  );
+                },
+              },
+            },
           },
           scales: {
             x: {
@@ -497,26 +533,58 @@
         },
       });
 
-      // ==================== WebSocket Connection ====================
-      const socket = io();
+      // ==================== State Management ====================
+      let lastUpdateTime = 0;
+      let sensorConnected = false;
 
-      socket.on("connect", () => {
-        console.log("✅ WebSocket connected");
-        document.getElementById("wsStatus").className = "status-dot online";
-        document.getElementById("serverStatus").className = "status-dot online";
-        document.getElementById("webStatus").textContent = "🟢 Connected";
-      });
+      // ==================== Helper Functions ====================
+      function updateSensorStatus(connected) {
+        sensorConnected = connected;
+        const sensorDot = document.getElementById("sensorStatus");
+        const serverDot = document.getElementById("serverStatus");
+        const tempCard = document.getElementById("tempCard");
+        const humidCard = document.getElementById("humidCard");
 
-      socket.on("disconnect", () => {
-        console.log("❌ WebSocket disconnected");
-        document.getElementById("wsStatus").className = "status-dot offline";
-        document.getElementById("serverStatus").className =
-          "status-dot offline";
-        document.getElementById("webStatus").textContent = "🔴 Disconnected";
-      });
+        if (connected) {
+          sensorDot.className = "status-dot online";
+          serverDot.className = "status-dot online";
+          tempCard.classList.remove("offline");
+          humidCard.classList.remove("offline");
 
-      socket.on("sensor_update", (data) => {
-        console.log("📡 Sensor update:", data);
+          // Remove offline overlays
+          document
+            .querySelectorAll(".card-offline-overlay")
+            .forEach((el) => el.remove());
+        } else {
+          sensorDot.className = "status-dot offline";
+          tempCard.classList.add("offline");
+          humidCard.classList.add("offline");
+
+          // Add offline overlays
+          if (!tempCard.querySelector(".card-offline-overlay")) {
+            const overlay = document.createElement("div");
+            overlay.className = "card-offline-overlay";
+            overlay.textContent = "⚠️ OFFLINE";
+            tempCard.appendChild(overlay);
+          }
+          if (!humidCard.querySelector(".card-offline-overlay")) {
+            const overlay = document.createElement("div");
+            overlay.className = "card-offline-overlay";
+            overlay.textContent = "⚠️ OFFLINE";
+            humidCard.appendChild(overlay);
+          }
+        }
+      }
+
+      function updateDisplay(data) {
+        if (!data || data.temperature === null || data.humidity === null) {
+          updateSensorStatus(false);
+          document.getElementById("tempValue").textContent = "--";
+          document.getElementById("humidValue").textContent = "--";
+          return;
+        }
+
+        updateSensorStatus(data.sensor_connected !== false);
 
         // Update values
         document.getElementById("tempValue").textContent =
@@ -528,6 +596,7 @@
         const now = new Date();
         document.getElementById("lastUpdate").textContent =
           now.toLocaleTimeString();
+        lastUpdateTime = now.getTime();
 
         // Show update indicator
         const indicator = document.getElementById("updateIndicator");
@@ -554,38 +623,63 @@
         }
 
         chart.update("none");
+      }
+
+      // ==================== WebSocket Connection ====================
+      const socket = io();
+
+      socket.on("connect", () => {
+        console.log("✅ WebSocket connected");
+        document.getElementById("wsStatus").className = "status-dot online";
+        document.getElementById("webStatus").textContent = "🟢 Connected";
       });
 
-      socket.on("history_data", (data) => {
-        console.log("📊 History data received");
+      socket.on("disconnect", () => {
+        console.log("❌ WebSocket disconnected");
+        document.getElementById("wsStatus").className = "status-dot offline";
+        document.getElementById("webStatus").textContent = "🔴 Disconnected";
+      });
 
-        // Populate chart with history
-        data.timestamps.forEach((ts, i) => {
-          const date = new Date(ts);
-          const timeLabel = date.toLocaleTimeString("en-US", {
-            hour12: false,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
-          chart.data.labels.push(timeLabel);
-          chart.data.datasets[0].data.push(data.temperature[i]);
-          chart.data.datasets[1].data.push(data.humidity[i]);
-        });
-
-        chart.update();
+      socket.on("sensor_update", (data) => {
+        console.log("📡 Sensor update:", data);
+        updateDisplay(data);
       });
 
       // ==================== Initial Data Fetch ====================
-      fetch("/api/sensors")
-        .then((res) => res.json())
-        .then((data) => {
-          document.getElementById("tempValue").textContent =
-            data.temperature.toFixed(1);
-          document.getElementById("humidValue").textContent =
-            data.humidity.toFixed(1);
-        })
-        .catch((err) => console.error("Error fetching initial data:", err));
+      async function fetchInitialData() {
+        try {
+          const response = await fetch("/api/sensors");
+          const data = await response.json();
+
+          console.log("📊 Initial data:", data);
+          updateDisplay(data);
+
+          // Fetch server IP (giả sử backend trả về)
+          document.getElementById("serverIP").textContent = "172.20.0.10";
+        } catch (err) {
+          console.error("Error fetching initial data:", err);
+          updateSensorStatus(false);
+        }
+      }
+
+      // ==================== Periodic Checks ====================
+      setInterval(() => {
+        const now = Date.now();
+        // Nếu không có update trong 15s → mark offline
+        if (sensorConnected && now - lastUpdateTime > 15000) {
+          console.warn("⚠️ Sensor timeout - marking as offline");
+          updateSensorStatus(false);
+        }
+      }, 5000);
+
+      // ==================== Initialize ====================
+      fetchInitialData();
+
+      // Simulate client status (nếu muốn thực sự tracking, cần backend endpoint)
+      setTimeout(() => {
+        document.getElementById("laptopStatus").textContent = "🟢 Active";
+        document.getElementById("mobileStatus").textContent = "🟢 Active";
+      }, 3000);
     </script>
   </body>
 </html>

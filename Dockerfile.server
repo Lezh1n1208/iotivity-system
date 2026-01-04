@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     git \
+    curl \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -47,5 +49,8 @@ COPY docker-start-server.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 EXPOSE 5000 5683/udp
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5000/api/sensors || exit 1
 
 CMD ["/app/start.sh"]
