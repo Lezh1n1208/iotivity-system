@@ -5,16 +5,26 @@ services:
       dockerfile: Dockerfile.server
     container_name: iot-gateway-rpi
     hostname: rpi-gateway
-    network_mode: "host"
+    networks:
+      iot-network:
+        ipv4_address: 172.20.0.10  
+    ports:
+      - "5000:5000"      
+      - "5683:5683/udp"  # OCF CoAP
     volumes:
       - sensor-state:/tmp
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/sensors"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     tty: true
     stdin_open: true
     environment:
       - PYTHONUNBUFFERED=1
 
-  # Giữ nguyên client containers
   ocf-client-1:
     build:
       context: .
@@ -24,10 +34,9 @@ services:
     networks:
       iot-network:
         ipv4_address: 172.20.0.20
-    environment:
-      - SERVER_IP=192.168.1.3  # ← ĐỔI THÀNH IP MÁY
     depends_on:
-      - ocf-server
+      ocf-server:
+        condition: service_healthy  # ← Đợi server ready
     restart: unless-stopped
     tty: true
     stdin_open: true
@@ -41,10 +50,9 @@ services:
     networks:
       iot-network:
         ipv4_address: 172.20.0.21
-    environment:
-      - SERVER_IP=192.168.1.3  # ← ĐỔI THÀNH IP MÁY
     depends_on:
-      - ocf-server
+      ocf-server:
+        condition: service_healthy  # ← Đợi server ready
     restart: unless-stopped
     tty: true
     stdin_open: true
@@ -52,6 +60,9 @@ services:
 networks:
   iot-network:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.enable_icc: "true"  # Inter-container communication
     ipam:
       driver: default
       config:
