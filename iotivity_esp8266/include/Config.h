@@ -5,7 +5,7 @@
 #define WIFI_PASS     "anbinh123"
 
 // === API Server === (PC IP + Flask port)
-#define SERVER_HOST   "192.168.1.12" 
+#define SERVER_HOST   "192.168.1.2" 
 #define SERVER_PORT   5000
 #define SERVER_ENDPOINT "/sensor"
 
